@@ -4,7 +4,8 @@
         "caption": "Ensime",
         "children":
         [
-            { "caption": "Start Server...", "command": "start_ensime_server" } //,
+            { "caption": "Start Server...", "command": "ensime_server" },
+            { "caption": "Stop Server...", "command": "ensime_server", "args": { "kill": true} }
             //{ "caption": "Initialize Server...", "command": "initialize_ensime_server" }
         ]
     }

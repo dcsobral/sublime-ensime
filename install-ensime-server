@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "Downloading ensime server archive"
+curl -OL# http://dl.dropbox.com/u/21717/ensime-server.tar.bz2
+echo "Extracting ensime server"
+tar xjf ensime-server.tar.bz2
+rm ensime-server.tar.bz2
+echo "All done."

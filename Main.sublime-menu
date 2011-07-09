@@ -1,0 +1,16 @@
+[
+    {
+        "id": "tools",
+        "children":
+        [
+            {
+                "caption": "Ensime",
+                "children":
+                [
+                    { "caption": "Start Server...", "command": "start_ensime_server" } //,
+                    //{ "caption": "Initialize Server...", "command": "initialize_ensime_server" }
+                ]
+            }
+        ]
+    }
+]

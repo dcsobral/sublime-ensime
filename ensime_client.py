@@ -1,5 +1,6 @@
-import os, sys, stat, time, datetime
+import os, sys, stat, time, datetime, re
 import sublime_plugin, sublime
+from sexp_parser import sexp
 import thread
 import logging
 import subprocess
@@ -19,7 +20,6 @@ class ProcessListener(object):
 
     def on_finished(self, proc):
         pass
-
 
 class AsyncProcess(object):
     def __init__(self, arg_list, listener, cwd = None):
@@ -76,42 +76,7 @@ class AsyncProcess(object):
                 self.proc.stderr.close()
                 break
 
-class EnsimeClient:
-    def __init__(self, project_root="/Users/ivan/projects/mojolly/backchat-library"):
-        self.project_root = project_root
-        self.client = self._connect()
 
-    def _port(self):
-        return int(open(self.project_root + "/ensime_port").read())
-
-    def _current_message(self):
-        return int(open(self.project_root + "/message.counter." + self._port()).read())
-        
-    def _with_length_header(self, data): 
-        return "%06x" % len(data) + data
-
-    def _make_message(self, data):
-        return str(self._with_length_header("(:swank-rpc " + str(data) + " " + str(1) + ")"))
-
-    def _connect(self):
-        try:
-            s = socket.socket()
-            s.connect(("127.0.0.1", self._port()))
-            return s
-        except socket.error as e:
-            # set sublime error status
-            sublime.error_message("Can't connect to ensime server:  " + e.args[1])
-
-    def close(self):
-        self.client.close()
-
-    def req(self, to_send): 
-        self.client.send(self._make_message(to_send))
-        resp = self.client.recv(1024)
-        return resp
-
-    def handshake(self): 
-        self.req("(swank:connection-info)")
 
 class ScalaOnly:
     def is_enabled(self):
@@ -123,9 +88,7 @@ class ScalaOnly:
         return fname.lower().endswith(".scala")
         # return True
 
-
-class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOnly):
-
+class EnsimeOnly:
     def ensime_project_file(self):
         prj_files = [(f + "/.ensime") for f in self.window.folders() if os.path.exists(f + "/.ensime")]
         if len(prj_files) > 0:
@@ -134,47 +97,72 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
             return None
 
     def is_enabled(self, kill = False):
-        if kill:
-            return hasattr(self, 'proc') and self.proc and self.proc.poll()
-        else:
-            return (hasattr(self, 'proc') or self.proc or self.proc.poll()) and bool(self.ensime_project_file())
+        return bool(self.window.ensime_client) and self.window.ensime_client.ready and bool(self.ensime_project_file())
 
-    def run(self, encoding = "utf-8", env = {}, quiet = False, kill = False):
+class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOnly, EnsimeOnly):
+
+
+    def ensime_project_root(self):
+        prj_dirs = [f for f in self.window.folders() if os.path.exists(f + "/.ensime")]
+        if len(prj_dirs) > 0:
+            return prj_dirs[0]
+        else:
+            return None
+
+    def is_started(self):
+        return hasattr(self, 'proc') and self.proc and self.proc.poll()
+
+    def is_enabled(self, **kwargs):
+        start, kill, show_output = kwargs.get("start", False), kwargs.get("kill", False), kwargs.get("show_output", False)
+        return ((kill or show_output) and self.is_started()) or (start and bool(self.ensime_project_file()))
+                    
+    def show_output_window(self, show_output = False):
+        if show_output:
+            self.window.run_command("show_panel", {"panel": "output.ensime_server"})
+        
+
+    def run(self, encoding = "utf-8", env = {}, start = False, quiet = False, kill = False, show_output = False):
+        self.show_output = False
 
         if not hasattr(self, 'settings'):
             self.settings = sublime.load_settings("Ensime.sublime-settings")
-        
+
         server_dir = self.settings.get("ensime_server_path")
 
         if kill:
+            self.window.message_counter = 0
+            self.window.ensime_client.ready = False
             if self.proc:
                 self.proc.kill()
                 self.proc = None
                 self.append_data(None, "[Cancelled]")
             return
+        else:
+            if self.is_started():
+                self.show_output_window(show_output)
+                if not self.quiet:
+                    print "Ensime server is already running!"
+                return
 
         if not hasattr(self, 'output_view'):
             self.output_view = self.window.get_output_panel("ensime_server")
 
-        self.encoding = encoding
+        if not hasattr(self.window, 'message_counter'):
+            self.window.message_counter = 0
+
         self.quiet = quiet
 
         self.proc = None
         if not self.quiet:
             print "Starting Ensime Server."
-
-        self.window.run_command("show_panel", {"panel": "output.ensime_server"})
-
-        merged_env = env.copy()
-        if self.window.active_view():
-            user_env = self.window.active_view().settings().get('build_env')
-            if user_env:
-                merged_env.update(user_env)
+        
+        if show_output:
+            self.show_output_window(show_output)
 
         # Change to the working dir, rather than spawning the process with it,
         # so that emitted working dir relative path names make sense
-        if len(self.window.folders()) > 0 and self.window.folders()[0] != "":
-            os.chdir(self.window.folders()[0])
+        if self.ensime_project_root() and self.ensime_project_root() != "":
+            os.chdir(self.ensime_project_root())
 
 
         err_type = OSError
@@ -182,9 +170,15 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
             err_type = WindowsError
 
         try:
-            self.proc = AsyncProcess([server_dir + '/bin/server', self.window.folders()[0] + "/.ensime_port"], self)
+            self.show_output = show_output
+            if start:
+                self.window.ensime_client = EnsimeClient(self.window, self.ensime_project_root())
+                self.proc = AsyncProcess(['bin/server', self.ensime_project_root() + "/.ensime_port"], self, server_dir)
         except err_type as e:
             self.append_data(None, str(e) + '\n')
+
+    def perform_handshake(self):
+        self.window.run_command("ensime_handshake")
         
 
     def append_data(self, proc, data):
@@ -195,13 +189,11 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
                 proc.kill()
             return
 
-        try:
-            str = data
-        except:
-            str = '[Decode error - output not ' + self.encoding + ']'
-            proc = None
+        str = data.replace("\r\n", "\n").replace("\r", "\n")
 
-        str = str.replace("\r\n", "\n").replace("\r", "\n")
+        if not self.window.ensime_client.ready and re.search("Wrote port", str):
+            self.window.ensime_client.ready = True
+            self.perform_handshake()
 
         selection_was_at_end = (len(self.output_view.sel()) == 1
             and self.output_view.sel()[0]
@@ -230,6 +222,123 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
     def on_finished(self, proc):
         sublime.set_timeout(functools.partial(self.finish, proc), 0)
 
+class EnsimeClient:
+
+    def __init__(self, window, project_root):
+        self.settings = sublime.load_settings("Ensime.sublime-settings")
+        self.project_root = project_root
+        self.ready = False
+        self.window = window
+        window.ensime_client = self
+        self.output_view = self.window.get_output_panel("ensime_messages")
+
+
+    def _port(self):
+        return int(open(self.project_root + "/.ensime_port").read())
+
+    def _last_message(self):
+        return self._current_message()
+
+    def _current_message(self):
+        if self.window:
+            return self.window.message_counter
+        else:
+            return 0
+
+    def _next_message(self):
+        return self._current_message() + 1
+
+    def _update_message_count(self):
+        if self.window:
+            self.window.message_counter = self._next_message()
+        
+    def _with_length_header(self, data): 
+        return "%06x" % len(data) + data
+
+    def _make_message(self, data):
+        return str(self._with_length_header(
+          "(:swank-rpc " + str(data) + " " + str(self._next_message()) + ")"))
+
+    def project_file(self): 
+        if self.ready:
+            return self.project_root + "/.ensime"
+        else:
+            return ""
+
+    def project_config(self):
+        return open(self.project_file()).read()
+
+    def connect(self):
+        try:
+            s = socket.socket()
+            s.connect(("127.0.0.1", self._port()))
+            self.client = s
+            return s
+        except socket.error as e:
+            # set sublime error status
+            self.ready = False
+            sublime.error_message("Can't connect to ensime server:  " + e.args[1])
+
+    def send(self, msg):
+        self.feedback(msg)
+        self.client.send(self._make_message(msg))
+        self._update_message_count()
+
+
+    def feedback(self, msg):
+        if self.output_view:
+            str = msg.replace("\r\n", "\n").replace("\r", "\n")
+
+            selection_was_at_end = (len(self.output_view.sel()) == 1
+                and self.output_view.sel()[0]
+                    == sublime.Region(self.output_view.size()))
+            self.output_view.set_read_only(False)
+            edit = self.output_view.begin_edit()
+            self.output_view.insert(edit, self.output_view.size(), str)
+            if selection_was_at_end:
+                self.output_view.show(self.output_view.size())
+            self.output_view.end_edit(edit)
+            self.output_view.set_read_only(True)
+
+
+    def close(self):
+        if self.client:
+            self.client.close()
+
+    def req(self, to_send): 
+        if self.ready and (not hasattr(self, "client") or not self.client):
+            self.connect()
+        self.send(to_send)
+        resp = self.client.recv(1024)[6:]
+        self.feedback(resp)
+        return resp
+
+    def handshake(self): 
+        return self.req("(swank:connection-info)")
+
+    def initialize_project(self):
+        return self.req("(swank:init-project " + self.project_config() + " )")
+
+class EnsimeShowMessageViewCommand(sublime_plugin.WindowCommand, EnsimeOnly):
+
+    def run(self):
+        self.window.run_command("show_panel", {"panel": "output.ensime_messages"})
+
+class EnsimeHandshakeCommand(sublime_plugin.WindowCommand, EnsimeOnly):
+
+    def run(self):
+        if (self.window.ensime_client.ready):
+            si = self.window.ensime_client.handshake()
+            server_info = sexp.parseString(si)[0]
+            if server_info[1][0] == ":ok" and server_info[2] == 1:
+                msg = "Initializing " + server_info[1][1][3][1] + " v." + server_info[1][1][9]
+                sublime.status_message(msg)
+                ii = self.window.ensime_client.initialize_project()
+                init_info = sexp.parseString(ii)[0]
+                sublime.status_message("Ensime ready!")
+            else:
+                sublime.error_message("There was problem initializing ensime, msgno: " + str(server_info[2]) + ".")
+                
 
 
 

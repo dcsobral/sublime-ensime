@@ -4,9 +4,18 @@
         "caption": "Ensime",
         "children":
         [
-            { "caption": "Start Server...", "command": "ensime_server" },
-            { "caption": "Stop Server...", "command": "ensime_server", "args": { "kill": true} }
-            //{ "caption": "Initialize Server...", "command": "initialize_ensime_server" }
+          { 
+            "caption": "Server",
+            "children": 
+            [
+              { "caption": "Start", "command": "ensime_server", "args": { "start": true} },
+              { "caption": "Stop", "command": "ensime_server", "args": { "kill": true} },
+              { "caption": "Show output", "command": "ensime_server", "args": { "show_output": true, "quiet": true }}
+            //{ "caption": "Initialize Server...", "command": "initialize_ensime_server" }  
+            ]
+          },
+          { "caption": "Show message output", "command": "ensime_show_message_view"}
+            
         ]
     }
 ]

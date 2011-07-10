@@ -30,14 +30,12 @@ class EnsimeServerClient:
         res = self.client.recv(4096)
         print "RECV: " + res[6:]
         if res:
-          if res == "" or res == None or not self.connected:
-            self.handler.on_disconnect("server")
-            self.set_connected(False)
-          else:
-            dd = sexp.parseString(res[6:])[0]
-            sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
+          dd = sexp.parseString(res[6:])[0]
+          sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
+        else:
+          self.set_connected(False)
+          
       except Exception as e:
-          raise e
           self.handler.on_disconnect("server")
           self.set_connected(False)
 

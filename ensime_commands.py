@@ -301,3 +301,4 @@ class EnsimeReformatSourceCommand(sublime_plugin.WindowCommand, EnsimeOnly):
         fmt_result = ensime_env.client().format_source(vw.file_name())
         sublime.status_message("Formatting done!")
 
+

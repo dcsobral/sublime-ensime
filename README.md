@@ -4,7 +4,8 @@ This project provides an integration with ensime and Sublime Text Editor 2.
 Sublime as an outstanding API so it should be possible to get all of ensime's features in Sublime Text Editor 2.
 
 ## What's working?
-The plugin is able to communicate with an ensime server and it should also be able to do reformat source. The messaging pipeline needs to be refactored and then the rest of the commands will get implemented.
+The plugin is able to communicate with an ensime server and it should also be able to do reformat source. 
+For some reason it seems that the java server doesn't get killed when you close the sublime application.
 
 ## How to install?
 

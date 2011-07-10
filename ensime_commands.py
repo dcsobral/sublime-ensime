@@ -1,6 +1,5 @@
 import os, sys, stat, time, datetime, re
 import functools, socket, threading
-from sexp_parser import sexp
 import sublime_plugin, sublime
 import thread
 import logging
@@ -330,23 +329,30 @@ class EnsimeServerClient:
 
     def receive_loop(self):
         print "starting receive loop, we're connected: " + str(self.connected)
+        from sexp_parser import sexp
+        # try:
+        #     sexp.parseString("""(:return (:ok (:pid nil :server-implementation (:name "ENSIMEserver") :machine nil :features nil :version "0.0.1")) 1)""")
+        # except:
+        #     pass    
+
         while 1:
-            try:
-                res = self.client.recv(4096)
-                print "RECV: " + res
-                if res:
-                    if res == "" or res == None or not self.connected:
-                        print "mmmm disconnected?"
-                        self.handler.on_disconnect("server")
-                        self.set_connected(False)
-                    else:
-                        dd = sexp.parseString(res[6:])[0]
-                        print "calling handler with: " + str(dd)
-                        sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
-            except Exception as e:
-                print e
-                self.handler.on_disconnect("server")
-                self.set_connected(False)
+            # try:
+            res = self.client.recv(4096)
+            print "RECV: " + res
+            if res:
+                if res == "" or res == None or not self.connected:
+                    print "mmmm disconnected?"
+                    self.handler.on_disconnect("server")
+                    self.set_connected(False)
+                else:
+                    print "about to parse: " + res[6:]
+                    dd = sexp.parseString(res[6:])[0]
+                    print "calling handler with: " + str(dd)
+                    sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
+            # except Exception as e:
+            #     raise e
+            #     self.handler.on_disconnect("server")
+            #     self.set_connected(False)
 
     def set_connected(self, val):
         self._lock.acquire()
@@ -426,8 +432,7 @@ class EnsimeClient(EnsimeMessageHandler):
             self._readyLock.release()
 
     def on_data(self, data):
-        print "got data: " + str(data)
-        self.feedback(repr(data))
+        self.feedback(data)
         # match a message with a registered response handler.
         # if the message has no registered handler check if it's a 
         # background message.
@@ -439,6 +444,7 @@ class EnsimeClient(EnsimeMessageHandler):
             }
 
             if self.message_handlers.has_key(data[-1]):
+                print "got a callback for the data"
                 th[data[1][0]](data)
             else:
                 print "Unhandled message: " + str(data)
@@ -449,7 +455,7 @@ class EnsimeClient(EnsimeMessageHandler):
 
     def handle_server_message(self, data):
         print "Received a message from the server:"
-        print repr(data)
+        print str(data)
 
     def next_message_id(self):
         self._counterLock.acquire()
@@ -492,7 +498,7 @@ class EnsimeClient(EnsimeMessageHandler):
 
     def disconnect(self):
         print "disconnecting"
-        self.client.disconnect()
+        self.client.close()
 
     def handshake(self, on_complete): 
         print "handshaking"

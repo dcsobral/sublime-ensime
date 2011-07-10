@@ -1,12 +1,10 @@
 import os, sys, stat, time, datetime, re
+from ensime_client import *
 import functools, socket, threading
 import sublime_plugin, sublime
 import thread
 import logging
 import subprocess
-import functools
-import socket
-import threading
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -148,7 +146,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
         server_dir = self.settings.get("ensime_server_path")
 
         if kill:
-            ensime_env.client().disconnect()
+            # ensime_env.client().disconnect()
             if self.proc:
                 self.proc.kill()
                 self.proc = None
@@ -239,7 +237,6 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
 
 class EnsimeUpdateMessagesView(sublime_plugin.WindowCommand, EnsimeOnly):
     def run(self, msg):
-        print "running: " + self.__class__.__name__
         if msg != None:
             ov = ensime_env.client().output_view
             msg = msg.replace("\r\n", "\n").replace("\r", "\n")
@@ -249,7 +246,7 @@ class EnsimeUpdateMessagesView(sublime_plugin.WindowCommand, EnsimeOnly):
                     == sublime.Region(ov.size()))
             ov.set_read_only(False)
             edit = ov.begin_edit()
-            ov.insert(edit, ov.size(), msg + "\n")
+            ov.insert(edit, ov.size(), str(msg) + "\n")
             if selection_was_at_end:
                 ov.show(ov.size())
             ov.end_edit(edit)
@@ -258,7 +255,6 @@ class EnsimeUpdateMessagesView(sublime_plugin.WindowCommand, EnsimeOnly):
 class CreateEnsimeClientCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
     def run(self):
-        print "running: " + self.__class__.__name__
         cl = EnsimeClient(self.window, u"/Users/ivan/projects/mojolly/backchat-library/core")
         cl.set_ready()
         self.window.run_command("ensime_handshake")
@@ -266,7 +262,6 @@ class CreateEnsimeClientCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 class EnsimeShowMessageViewCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
     def run(self):
-        print "running: " + self.__class__.__name__
         self.window.run_command("show_panel", {"panel": "output.ensime_messages"})
 
 class EnsimeHandshakeCommand(sublime_plugin.WindowCommand, EnsimeOnly):
@@ -283,7 +278,6 @@ class EnsimeHandshakeCommand(sublime_plugin.WindowCommand, EnsimeOnly):
             sublime.error_message("There was problem initializing ensime, msgno: " + str(server_info[2]) + ".")
 
     def run(self):
-        print "running: " + self.__class__.__name__
         if (ensime_env.client().ready()):
             ensime_env.client().handshake(self.handle_reply)
             
@@ -298,217 +292,12 @@ def save_view(view):
 class EnsimeReformatSourceCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
     def run(self):
-        print "running: " + self.__class__.__name__
+        # TODO: copy buffer to temp file, run formatting on that
+        #       set the current view to read only during the formatting
+        #       then move the content from the temp file into the view and
+        #       allow writing again in the view.
         vw = self.window.active_view()
-        print("reformatting: " + vw.file_name())
         save_view(vw)
         fmt_result = ensime_env.client().format_source(vw.file_name())
-        print fmt_result
         sublime.status_message("Formatting done!")
 
-class EnsimeMessageHandler:
-
-    def on_data(self, data):
-        pass
-
-    def on_disconnect(self, reason):
-        pass
-
-class EnsimeServerClient:
-
-    def __init__(self, project_root, handler):
-        self.project_root = project_root
-        self.connected = False
-        self.handler = handler
-        self._lock = threading.RLock()
-        self._connect_lock = threading.RLock()
-        self._receiver = None
-
-    def port(self):
-        return int(open(self.project_root + "/.ensime_port").read()) 
-
-    def receive_loop(self):
-        print "starting receive loop, we're connected: " + str(self.connected)
-        from sexp_parser import sexp
-        # try:
-        #     sexp.parseString("""(:return (:ok (:pid nil :server-implementation (:name "ENSIMEserver") :machine nil :features nil :version "0.0.1")) 1)""")
-        # except:
-        #     pass    
-
-        while 1:
-            # try:
-            res = self.client.recv(4096)
-            print "RECV: " + res
-            if res:
-                if res == "" or res == None or not self.connected:
-                    print "mmmm disconnected?"
-                    self.handler.on_disconnect("server")
-                    self.set_connected(False)
-                else:
-                    print "about to parse: " + res[6:]
-                    dd = sexp.parseString(res[6:])[0]
-                    print "calling handler with: " + str(dd)
-                    sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
-            # except Exception as e:
-            #     raise e
-            #     self.handler.on_disconnect("server")
-            #     self.set_connected(False)
-
-    def set_connected(self, val):
-        self._lock.acquire()
-        try:
-            self.connected = val
-        finally:
-            self._lock.release()
-
-    def start_receiving(self):
-        t = threading.Thread(name = "ensime-client-" + str(self.port()), target = self.receive_loop)
-        t.setDaemon(True)
-        t.start()
-        self._receiver = t
-
-    def connect(self):
-        self._connect_lock.acquire()
-        try:
-            s = socket.socket()
-            s.connect(("127.0.0.1", self.port()))
-            self.client = s
-            self.set_connected(True)
-            self.start_receiving()
-            return s
-        except socket.error as e:
-            # set sublime error status
-            self.set_connected(False)
-            sublime.error_message("Can't connect to ensime server:  " + e.args[1])
-        finally:
-            self._connect_lock.release()
-
-    def send(self, request):
-        if not self.connected:
-            self.connect()
-        self.client.send(request)        
-
-    def close(self):
-        self._connect_lock.acquire()
-        try:
-            if self.client:
-                self.client.close()
-            self.connected = False
-        finally:
-            self._connect_lock.release()    
-    
-
-class EnsimeClient(EnsimeMessageHandler):
-
-    def __init__(self, settings, window, project_root):
-        self.settings = settings
-        self.project_root = project_root
-        self._ready = False
-        self._readyLock = threading.RLock()
-        self.window = window
-        self.output_view = self.window.get_output_panel("ensime_messages")
-        self.message_handlers = dict()
-        self._counter = 0
-        self._counterLock = threading.RLock()
-        self.client = EnsimeServerClient(project_root, self)
-        
-    def ready(self):
-        return self._ready
-
-    def set_ready(self):
-        self._readyLock.acquire()
-        try:
-            self._ready = True
-            return self.ready()
-        finally:
-            self._readyLock.release()
-
-    def set_not_ready(self):
-        self._readyLock.acquire()
-        try:
-            self._ready = False
-            return self.ready()
-        finally:
-            self._readyLock.release()
-
-    def on_data(self, data):
-        self.feedback(data)
-        # match a message with a registered response handler.
-        # if the message has no registered handler check if it's a 
-        # background message.
-        if data[0] == ":return":
-            th = {
-                ":ok": lambda d: self.message_handlers[d[-1]](d),
-                ":abort": lambda d: sublime.status_message(d[-1]),
-                ":error": lambda d: sublime.error_message(d[-1])
-            }
-
-            if self.message_handlers.has_key(data[-1]):
-                print "got a callback for the data"
-                th[data[1][0]](data)
-            else:
-                print "Unhandled message: " + str(data)
-        else:
-            self.handle_server_message(data)
-        #except BaseException as e:
-         #   sublime.error_message("There was an exception: " + str(e))
-
-    def handle_server_message(self, data):
-        print "Received a message from the server:"
-        print str(data)
-
-    def next_message_id(self):
-        self._counterLock.acquire()
-        try:
-            self._counter += 1
-            return self._counter
-        finally:
-            self._counterLock.release()
-
-    def feedback(self, msg):
-        sublime.set_timeout(self.window.run_command("ensime_update_messages_view", { 'msg': msg }), 0)
-
-    def on_disconnect(self, reason = "client"):
-        if reason == "server":
-            sublime.error_message("The ensime server was disconnected, you might want to restart it.")
-
-    def project_file(self): 
-        if self.ready:
-            return self.project_root + "/.ensime"
-        else:
-            return ""
-
-    def project_config(self):
-        return open(self.project_file()).read()
-    
-    def prepend_length(self, data): 
-        return "%06x" % len(data) + data
-
-    def format(self, data, count):
-        return str(self.prepend_length("(:swank-rpc " + str(data) + " " + str(count) + ")"))
-    
-    def req(self, to_send, on_complete): 
-        if self.ready() and not self.client.connected:
-            self.client.connect()
-        msgcnt = self.next_message_id()
-        self.message_handlers[msgcnt] = on_complete
-        msg = self.format(to_send, msgcnt)
-        self.feedback(msg)
-        self.client.send(msg)
-
-    def disconnect(self):
-        print "disconnecting"
-        self.client.close()
-
-    def handshake(self, on_complete): 
-        print "handshaking"
-        return self.req("(swank:connection-info)", on_complete)
-
-    def initialize_project(self, on_complete):
-        print "initializing project"
-        return self.req("(swank:init-project " + self.project_config() + " )", on_complete)
-
-    def format_source(self, file_path, on_complete):
-        print "formatting source: " + file_path
-        return self.req('(swank:format-source ("'+file_path+'"))', on_complete)
-        

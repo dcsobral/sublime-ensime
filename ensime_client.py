@@ -1,6 +1,7 @@
 import os, sys, stat, time, datetime, re
 import functools, socket, threading
 import sublime_plugin, sublime
+from string import strip
 
 class EnsimeMessageHandler:
 
@@ -29,15 +30,26 @@ class EnsimeServerClient:
       try:
         res = self.client.recv(4096)
         print "RECV: " + res[6:]
+        msglen = int(res[:6], 16) + 6
+        msg = res[6:msglen]
+        nxt = strip(res[msglen:])
         if res:
-          dd = sexp.parseString(res[6:])[0]
-          sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
+          while len(nxt) > 0 or len(msg) > 0:
+            dd = sexp.parseString(msg)[0]
+            sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
+            if len(nxt) > 0:
+              msglen = int(nxt[:6], 16) + 6
+              msg = nxt[6:msglen]
+              nxt = strip(nxt[msglen:])
+            else: 
+              msg = ""
+              msglen = ""
         else:
           self.set_connected(False)
-          
       except Exception as e:
-          self.handler.on_disconnect("server")
-          self.set_connected(False)
+        print e
+        self.handler.on_disconnect("server")
+        self.set_connected(False)
 
   def set_connected(self, val):
     self._lock.acquire()

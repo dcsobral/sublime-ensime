@@ -10,6 +10,10 @@ I have never written a single line of python, and besides this plugin which I ne
 ## What's working?
 The plugin is able to communicate with an ensime server and it should also be able to do reformat source. 
 For some reason it seems that the java server doesn't get killed when you close the sublime application.
+There is NO support yet for the subprojects in an .ensime file.
+
+  * Reformat source
+  * 
 
 ## How to install?
 

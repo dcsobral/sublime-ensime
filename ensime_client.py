@@ -105,7 +105,7 @@ class EnsimeClient(EnsimeMessageHandler):
     }
     self._server_message_handlers = {
       "clear-all-scala-notes": ignore,
-      "compiler-ready": ignore,
+      "compiler-ready": self.random_words_of_encouragement,
       "full-typecheck-finished": ignore,
       "compiler-ready": ignore,
       "indexer-ready": ignore,
@@ -157,6 +157,9 @@ class EnsimeClient(EnsimeMessageHandler):
     except Exception as e:
       print "Error when handling server message: " + str(data)
       print e.args
+
+  def random_words_of_encouragement(self, data):
+    self.window.run_command("random_words_of_encouragement")
 
   def next_message_id(self):
     self._counterLock.acquire()

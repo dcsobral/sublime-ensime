@@ -20,5 +20,4 @@ class EnsimeEnvironment:
     return self._client
 
 
-global ensime_env 
 ensime_env = EnsimeEnvironment()

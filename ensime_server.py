@@ -1,13 +1,13 @@
 import os, sys, stat, time, datetime, re, random
 from ensime_client import *
-from ensime_environment import ensime_env
+import ensime_environment
 import functools, socket, threading
 import sublime_plugin, sublime
 import thread
 import logging
 import subprocess
 
-global ensime_env
+
 class ProcessListener(object):
   def on_data(self, proc, data):
     pass
@@ -90,7 +90,7 @@ class EnsimeOnly:
       return None
 
   def is_enabled(self, kill = False):
-    return bool(ensime_env.client()) and ensime_env.client.ready() and bool(self.ensime_project_file())
+    return bool(ensime_environment.ensime_env.client()) and ensime_environment.ensime_env.client.ready() and bool(self.ensime_project_file())
 
 class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOnly, EnsimeOnly):
 
@@ -123,7 +123,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
     server_dir = self.settings.get("ensime_server_path")
 
     if kill:
-      # ensime_env.client().disconnect()
+      # ensime_environment.ensime_env.client().disconnect()
       if self.proc:
         self.proc.kill()
         self.proc = None
@@ -161,9 +161,8 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
     try:
       self.show_output = show_output
       if start:
-        global ensime_env
-        cl = EnsimeClient(ensime_env.settings, self.window, self.ensime_project_root())
-        sublime.set_timeout(functools.partial(ensime_env.set_client, cl), 0)
+        cl = EnsimeClient(ensime_environment.ensime_env.settings, self.window, self.ensime_project_root())
+        sublime.set_timeout(functools.partial(ensime_environment.ensime_env.set_client, cl), 0)
         vw = self.window.active_view()
         self.proc = AsyncProcess(['bin/server', self.ensime_project_root() + "/.ensime_port"], self, server_dir)
     except err_type as e:
@@ -183,8 +182,8 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
 
     str = data.replace("\r\n", "\n").replace("\r", "\n")
 
-    if not ensime_env.client().ready() and re.search("Wrote port", str):
-      ensime_env.client().set_ready()
+    if not ensime_environment.ensime_env.client().ready() and re.search("Wrote port", str):
+      ensime_environment.ensime_env.client().set_ready()
       self.perform_handshake()
 
     selection_was_at_end = (len(self.output_view.sel()) == 1
@@ -218,7 +217,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
 class EnsimeUpdateMessagesView(sublime_plugin.WindowCommand, EnsimeOnly):
   def run(self, msg):
     if msg != None:
-      ov = ensime_env.client().output_view
+      ov = ensime_environment.ensime_env.client().output_view
       msg = msg.replace("\r\n", "\n").replace("\r", "\n")
 
       selection_was_at_end = (len(ov.sel()) == 1
@@ -253,11 +252,11 @@ class EnsimeHandshakeCommand(sublime_plugin.WindowCommand, EnsimeOnly):
     if server_info[1][0] == ":ok" and server_info[2] == 1:
       msg = "Initializing " + server_info[1][1][3][1] + " v." + server_info[1][1][9]
       sublime.status_message(msg)
-      ensime_env.client().initialize_project(self.handle_init_reply)
+      ensime_environment.ensime_env.client().initialize_project(self.handle_init_reply)
     else:
       sublime.error_message("There was problem initializing ensime, msgno: " + str(server_info[2]) + ".")
 
   def run(self):
-    if (ensime_env.client().ready()):
-      ensime_env.client().handshake(self.handle_reply)
+    if (ensime_environment.ensime_env.client().ready()):
+      ensime_environment.ensime_env.client().handshake(self.handle_reply)
             

@@ -3,6 +3,7 @@ import functools, socket, threading
 import sublime_plugin, sublime
 from string import strip
 
+
 class EnsimeMessageHandler:
 
   def on_data(self, data):

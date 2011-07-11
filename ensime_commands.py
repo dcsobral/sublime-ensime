@@ -1,14 +1,9 @@
 import os, sys, stat, random, getpass
-from ensime_server import EnsimeOnly, ensime_env
+import ensime_environment
+from ensime_server import EnsimeOnly
 import functools, socket, threading
 import sublime_plugin, sublime
 
-global ensime_env
-
-def ensure_ensime_env():
-  global ensime_env
-  if not ensime_env or ensime_env.client() == None:
-    from ensime_server import ensime_env
 
 def save_view(view):
   if view == None or view.file_name == None:
@@ -24,11 +19,11 @@ class EnsimeReformatSourceCommand(sublime_plugin.TextCommand, EnsimeOnly):
     self.view.set_status("ensime", "Formatting done!")
 
   def run(self, edit):
-    ensure_ensime_env()
+    #ensure_ensime_environment.ensime_env()
     vw = self.view
     if vw.is_dirty():
       vw.run_command("save")
-    fmt_result = ensime_env.client().format_source(vw.file_name(), self.handle_reply)
+    fmt_result = ensime_environment.ensime_env.client().format_source(vw.file_name(), self.handle_reply)
     
 
 class RandomWordsOfEncouragementCommand(sublime_plugin.WindowCommand, EnsimeOnly):
@@ -57,7 +52,7 @@ class EnsimeTypeCheckAllCommand(sublime_plugin.WindowCommand, EnsimeOnly):
     print data
 
   def run(self):
-    ensime_env.client().type_check_all(self.handle_reply)
+    ensime_environment.ensime_env.client().type_check_all(self.handle_reply)
 
 class EnsimeTypeCheckFileCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
@@ -71,6 +66,6 @@ class EnsimeOrganizeImportsCommand(sublime_plugin.TextCommand, EnsimeOnly):
     print data
 
   def run(self, edit):
-    ensure_ensime_env()
+    #ensure_ensime_environment.ensime_env()
     fname = self.view.file_name()
-    ensime_env.client().organize_imports(fname, lambda data: self.handle_reply(edit, data))
+    ensime_environment.ensime_env.client().organize_imports(fname, lambda data: self.handle_reply(edit, data))

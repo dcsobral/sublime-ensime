@@ -1,10 +1,9 @@
 import os, sys, stat
 import sublime, sublime_plugin
-import ensime_server
 from ensime_server import EnsimeOnly
-from ensime_environment import ensime_env
+import ensime_environment
 
-global ensime_env
+ensime_env = ensime_environment.ensime_env
 
 class EnsimeScalaNotes(sublime_plugin.WindowCommand, EnsimeOnly):
 

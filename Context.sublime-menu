@@ -14,9 +14,16 @@
             //{ "caption": "Initialize Server...", "command": "initialize_ensime_server" }  
             ]
           },
-          { "caption": "-"},
-          { "caption": "Reformat source", "command": "ensime_reformat_source" },
-          { "caption": "Show message output", "command": "ensime_show_message_view"}
+          {
+            "caption": "Source",
+            "children": 
+            [
+              { "caption": "Reformat source", "command": "ensime_reformat_source" },
+              { "caption": "Organize imports", "command": "ensime_organize_imports" },
+              { "caption": "Show message output", "command": "ensime_show_message_view"}
+            ]  
+          }
+          
             
         ]
     }

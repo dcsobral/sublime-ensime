@@ -163,6 +163,9 @@ class EnsimeClient(EnsimeMessageHandler):
     finally:
       self._readyLock.release()
 
+  def remove_handler(self, handler_id):
+    del self.message_handlers[handler_id]
+
   def on_data(self, data):
     self.feedback(str(data))
     # match a message with a registered response handler.
@@ -176,7 +179,6 @@ class EnsimeClient(EnsimeMessageHandler):
       #   del self.proceure_handlers[data[0][0][1]]
       if self.message_handlers.has_key(data[-1]):
         th[data[1][0]](data)
-        del self.message_handlers[data[-1]]
       else:
         print "Unhandled message: " + str(data)
     else:
@@ -240,19 +242,25 @@ class EnsimeClient(EnsimeMessageHandler):
   def format(self, data, count):
     return str("(:swank-rpc " + str(data) + " " + str(count) + ")")
   
-  def req(self, to_send, on_complete): 
+  def req(self, to_send, on_complete, msg_id = None): 
+    msgcnt = msg_id
+    if msg_id == None:
+      msgcnt = self.next_message_id()
+      
     if self.ready() and not self.client.connected:
       self.client.connect()
-    msgcnt = self.next_message_id()
     self.message_handlers[msgcnt] = on_complete
     msg = self.format(to_send, msgcnt)
     self.feedback(msg)
     self.client.send(self.prepend_length(msg))
 
-  def refactor_req(self, to_send, on_complete):
+  def refactor_req(self, to_send, on_complete, msg_id = None):
+    msgcnt = msg_id
+    if msg_id == None:
+      msgcnt = self.next_procedure_id()
+
     if self.ready() and not self.client.connected:
       self.client.connect()
-    msgcnt = self.next_procedure_id()
     self.procedure_handlers[msgcnt] = on_complete
     msg = self.format(to_send, 't')
     self.feedback(msg)
@@ -286,6 +294,6 @@ class EnsimeClient(EnsimeMessageHandler):
     self.req('(swank:perform-refactor ' + str(self.next_procedure_id()) + ' organizeImports ' +
                 '(file "'+file_path+'") t)', on_complete)
   
-  def perform_organize(self, previous_id, on_complete):
-    self.req("(swank:exec-refactor " + str(previous_id) + " organizeImports)")
+  def perform_organize(self, previous_id, msg_id, on_complete):
+    self.req("(swank:exec-refactor " + str(int(previous_id)) + " organizeImports)", on_complete, int(msg_id))
       

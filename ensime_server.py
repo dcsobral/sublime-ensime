@@ -1,13 +1,13 @@
 import os, sys, stat, time, datetime, re, random
 from ensime_client import *
-from ensime_environment import *
+from ensime_environment import ensime_env
 import functools, socket, threading
 import sublime_plugin, sublime
 import thread
 import logging
 import subprocess
 
-
+global ensime_env
 class ProcessListener(object):
   def on_data(self, proc, data):
     pass
@@ -161,7 +161,10 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOn
     try:
       self.show_output = show_output
       if start:
-        ensime_env.set_client(EnsimeClient(ensime_env.settings, self.window, self.ensime_project_root()))
+        global ensime_env
+        cl = EnsimeClient(ensime_env.settings, self.window, self.ensime_project_root())
+        sublime.set_timeout(functools.partial(ensime_env.set_client, cl), 0)
+        vw = self.window.active_view()
         self.proc = AsyncProcess(['bin/server', self.ensime_project_root() + "/.ensime_port"], self, server_dir)
     except err_type as e:
         self.append_data(None, str(e) + '\n')

@@ -4,6 +4,7 @@ import sublime_plugin, sublime
 from string import strip
 
 
+
 class EnsimeMessageHandler:
 
   def on_data(self, data):
@@ -26,21 +27,19 @@ class EnsimeServerClient:
     return int(open(self.project_root + "/.ensime_port").read()) 
 
   def receive_loop(self):
-    from sexp_parser import sexp
     #TODO: possibly use a smaller buffer but allow for recomposing a message
     #      from multiple buffers in case they overflow.
+    from sexpr_parser import parse
     while self.connected:
       try:
         res = self.client.recv(4096)
-        print "RECV: " + res[6:]
+        print "RECV: " + res
         if res:
           msglen = int(res[:6], 16) + 6
           msg = res[6:msglen]
           nxt = strip(res[msglen:])
-          
           while len(nxt) > 0 or len(msg) > 0:
-            dd = sexp.parseString(msg)[0]
-            sublime.set_timeout(functools.partial(self.handler.on_data, dd), 0)
+            sublime.set_timeout(functools.partial(self.handler.on_data, parse(msg)), 0)
             if len(nxt) > 0:
               msglen = int(nxt[:6], 16) + 6
               msg = nxt[6:msglen]
@@ -51,6 +50,7 @@ class EnsimeServerClient:
         else:
           self.set_connected(False)
       except Exception as e:
+        print "*****    ERROR     *****"
         print e
         self.handler.on_disconnect("server")
         self.set_connected(False)

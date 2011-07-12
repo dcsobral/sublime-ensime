@@ -17,6 +17,11 @@ class ProcessListener(object):
 
 class AsyncProcess(object):
   def __init__(self, arg_list, listener, cwd = None):
+
+    # ensure the subprocess is always killed when the editor exits
+    import atexit
+    atexit.register(self.kill)
+
     self.listener = listener
     self.killed = False
 

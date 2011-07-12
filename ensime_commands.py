@@ -80,7 +80,8 @@ class EnsimeOrganizeImportsCommand(sublime_plugin.TextCommand, EnsimeOnly):
 
       new_cntnt = new_cntnt.replace('\r\n', '\n').replace('\r', '\n')
       cl = ensime_environment.ensime_env.client()
-      cl.window.show_input_panel("Confirm change: ", "yes", on_done, None, on_cancel)
+      #cl.window.show_input_panel("Confirm change: ", "yes", on_done, None, on_cancel)
+      cl.window.show_quick_panel(["Accept changes", "Reject changes"], on_done)
       ov.set_read_only(False)
       edt = ov.begin_edit()
       ov.insert(edt, 0, prelude + prev + new_cntnt)
@@ -88,8 +89,7 @@ class EnsimeOrganizeImportsCommand(sublime_plugin.TextCommand, EnsimeOnly):
       ov.set_read_only(True)
 
   def on_done(self, procedure_id, msg_id, output, answer):
-    if answer.lower() == "yes":
-      print "performing refactor"
+    if answer == 0:
       self.view.run_command("ensime_accept_imports", { "procedure_id": procedure_id, "msg_id": msg_id })
       self.close_output_view(output)
     else:
@@ -114,8 +114,6 @@ class EnsimeOrganizeImportsCommand(sublime_plugin.TextCommand, EnsimeOnly):
 class EnsimeAcceptImportsCommand(sublime_plugin.TextCommand, EnsimeOnly): 
 
   def handle_reply(self, edit, data):
-    print "Got data for executed imports command"
-    print data
     self.view.run_command("revert")
     ensime_environment.ensime_env.client().remove_handler(data[-1])
 

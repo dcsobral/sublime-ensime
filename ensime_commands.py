@@ -24,7 +24,7 @@ class EnsimeReformatSourceCommand(sublime_plugin.TextCommand, EnsimeOnly):
     vw = self.view
     if vw.is_dirty():
       vw.run_command("save")
-    fmt_result = ensime_environment.ensime_env.client().format_source(vw.file_name(), self.handle_reply)
+    ensime_environment.ensime_env.client().format_source(vw.file_name(), self.handle_reply)
 
 class RandomWordsOfEncouragementCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
@@ -48,16 +48,29 @@ class RandomWordsOfEncouragementCommand(sublime_plugin.WindowCommand, EnsimeOnly
 class EnsimeTypeCheckAllCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
   def handle_reply(self, data):
-    
+    print "got reply for type check all:"
+    print data
     ensime_environment.ensime_env.client().remove_handler(data[-1])
 
   def run(self):
     ensime_environment.ensime_env.client().type_check_all(self.handle_reply)
 
-class EnsimeTypeCheckFileCommand(sublime_plugin.WindowCommand, EnsimeOnly):
+class EnsimeTypeCheckFileCommand(sublime_plugin.TextCommand, EnsimeOnly):
 
-  def run(self):
-    pass
+  def handle_reply(self, data):
+    print "got reply for type check file:"
+    print data
+
+  def run(self, edit):
+    vw = self.view
+    fname = vw.file_name()
+    if fname:
+      if vw.is_dirty():
+        vw.run_command("save")
+
+      repl = self.handle_reply
+      cl = ensime_environment.ensime_env.client()
+      cl.type_check_file(fname, repl)
 
 class EnsimeOrganizeImportsCommand(sublime_plugin.TextCommand, EnsimeOnly):
 
@@ -76,12 +89,12 @@ class EnsimeOrganizeImportsCommand(sublime_plugin.TextCommand, EnsimeOnly):
       prev = self.view.substr(sublime.Region(0, start))
 
       on_done = functools.partial(self.on_done, data[1][1][1], data[-1], ov)
-      on_cancel = functools.partial(self.on_cancel, data[-1], ov)
-
+ 
       new_cntnt = new_cntnt.replace('\r\n', '\n').replace('\r', '\n')
+ 
       cl = ensime_environment.ensime_env.client()
-      #cl.window.show_input_panel("Confirm change: ", "yes", on_done, None, on_cancel)
       cl.window.show_quick_panel(["Accept changes", "Reject changes"], on_done)
+ 
       ov.set_read_only(False)
       edt = ov.begin_edit()
       ov.insert(edt, 0, prelude + prev + new_cntnt)
@@ -93,11 +106,8 @@ class EnsimeOrganizeImportsCommand(sublime_plugin.TextCommand, EnsimeOnly):
       self.view.run_command("ensime_accept_imports", { "procedure_id": procedure_id, "msg_id": msg_id })
       self.close_output_view(output)
     else:
-      self.on_cancel(msg_id, output)
-
-  def on_cancel(self, msg_id, output):
-    ensime_environment.ensime_env.client().remove_handler(msg_id)
-    self.close_output_view(output)
+      ensime_environment.ensime_env.client().remove_handler(msg_id)
+      self.close_output_view(output)
 
   def close_output_view(self, output):
     # ov = self.views[output]

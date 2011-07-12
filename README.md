@@ -10,6 +10,8 @@ There is NO support yet for the subprojects in an .ensime file.
 
   * Reformat source
   * Organize imports
+  * highlighting syntax errors, shows message in status bar
+  
 
 ## How to install?
 

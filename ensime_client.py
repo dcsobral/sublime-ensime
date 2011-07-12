@@ -111,12 +111,22 @@ class EnsimeClient(EnsimeMessageHandler):
 
     def clear_notes(lang, data):
       if data[-1] == "t":
-        self.window.run_command("ensime_java_notes", {"action": "clear"})
+        self.window.active_view().run_command(
+          "ensime_notes", 
+          {"lang": lang, "action": "clear"})
 
-    def full_type_check_done(d):
-      if d[-1] == "t":
-        sublime.status_message("Full type check done!")
+    def add_note(lang, data):
+      self.window.active_view().run_command(
+        "ensime_notes",
+        { "lang": lang, "action": "add", "value": data }
+      )
     
+    def render_notes(data):
+      if data[-1] == "t":
+        self.window.active_view().run_command(
+          "ensime_notes",
+          { "action": "render" }
+        )    
     
     self.settings = settings
     self.project_root = project_root
@@ -138,8 +148,10 @@ class EnsimeClient(EnsimeMessageHandler):
     self._server_message_handlers = {
       "clear-all-scala-notes": lambda d: clear_notes("scala", d),
       "clear-all-java-notes": lambda d: clear_notes("java", d),
+      "scala-notes": lambda d: add_note("scala", d),
+      "java-notes": lambda d: add_note("java", d),
       "compiler-ready": lambda d: self.window.run_command("random_words_of_encouragement"),
-      "full-typecheck-finished": ignore,
+      "full-typecheck-finished": render_notes,
       "indexer-ready": ignore,
       "background-message": sublime.status_message
     }
@@ -239,32 +251,30 @@ class EnsimeClient(EnsimeMessageHandler):
   def prepend_length(self, data): 
     return "%06x" % len(data) + data
 
-  def format(self, data, count):
-    return str("(:swank-rpc " + str(data) + " " + str(count) + ")")
+  def format(self, data, count = None):
+    if count == None:
+      return "(:swank-rpc " + str(data) + ")"
+    else:
+      return str("(:swank-rpc " + str(data) + " " + str(count) + ")")
   
-  def req(self, to_send, on_complete, msg_id = None): 
+  def req(self, to_send, on_complete = None, msg_id = None): 
     msgcnt = msg_id
     if msg_id == None:
       msgcnt = self.next_message_id()
       
     if self.ready() and not self.client.connected:
       self.client.connect()
-    self.message_handlers[msgcnt] = on_complete
-    msg = self.format(to_send, msgcnt)
-    self.feedback(msg)
-    self.client.send(self.prepend_length(msg))
 
-  def refactor_req(self, to_send, on_complete, msg_id = None):
-    msgcnt = msg_id
-    if msg_id == None:
-      msgcnt = self.next_procedure_id()
+    msg = ""
+    if on_complete != None:
+      self.message_handlers[msgcnt] = on_complete
+      msg = self.format(to_send, msgcnt)
+    else:
+      msg = self.format(to_send)
 
-    if self.ready() and not self.client.connected:
-      self.client.connect()
-    self.procedure_handlers[msgcnt] = on_complete
-    msg = self.format(to_send, 't')
-    self.feedback(msg)
-    self.client.send(self.prepend_length(msg))
+    if msg != "":
+      self.feedback(msg)
+      self.client.send(self.prepend_length(msg))
 
   def disconnect(self):
     self._counterLock.acquire()
@@ -288,7 +298,7 @@ class EnsimeClient(EnsimeMessageHandler):
     self.req('(swank:typecheck-all)', on_complete)
 
   def type_check_file(self, file_path, on_complete):
-    pass
+    self.req('(swank:typecheck-file "' + file_path + '")', on_complete)
 
   def organize_imports(self, file_path, on_complete):
     self.req('(swank:perform-refactor ' + str(self.next_procedure_id()) + ' organizeImports ' +

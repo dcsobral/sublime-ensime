@@ -1,4 +1,4 @@
-import os, sys, stat
+import os, sys, stat, functools
 import sublime, sublime_plugin
 from ensime_server import EnsimeOnly
 import ensime_environment
@@ -69,21 +69,41 @@ class EnsimeNotes(sublime_plugin.TextCommand, EnsimeOnly):
       vpos = vw.line(vw.sel()[0].begin()).begin()
       if len(nn) > 0 and len([a for a in nn if self.view.line(int(a.start)).begin() == vpos]) > 0:
         msgs = [note.message for note in self.notes_for_view()]
-        self.view.set_status("ensime-typer", "; ".join(msgs))
+        self.view.set_status("ensime-typer", "; ".join(set(msgs)))
       else:
         self.view.erase_status("ensime-typer")
+        #sublime.set_timeout(functools.partial(self.view.run_command, "ensime_inspect_type_at_point", self.view.id()), 200)
+
+def run_check(view):
+  if view.settings().get("syntax") == u'Packages/scala.tmbundle/Syntaxes/Scala.tmLanguage':
+    view.checked = True
+    view.run_command("ensime_type_check_file")
 
 class BackgroundTypeChecker(sublime_plugin.EventListener):
 
   def on_load(self, view):
-    if view.settings().get("syntax") == u'Packages/scala.tmbundle/Syntaxes/Scala.tmLanguage':
-      view.run_command("ensime_type_check_file")
+    run_check(view)
 
   def on_post_save(self, view):
-    if view.settings().get("syntax") == u'Packages/scala.tmbundle/Syntaxes/Scala.tmLanguage':
-      view.run_command("ensime_type_check_file")
+    run_check(view)
 
   def on_selection_modified(self, view):
     if view.settings().get("syntax") == u'Packages/scala.tmbundle/Syntaxes/Scala.tmLanguage':
       view.run_command("ensime_notes", { "action": "display" })
+
+class EnsimeInspectTypeAtPoint(sublime_plugin.TextCommand, EnsimeOnly):
+
+  def handle_reply(self, data):
+    d = data[1][1]
+    if d[1] != "<notype>":
+      self.view.set_status("ensime-typer", "(" + d[7].capitalize() + ") " + d[5])
+    else:
+      self.view.erase_status("ensime-typer")
+
+  def run(self, edit):
+    if self.view.file_name():
+      cl = ensime_environment.ensime_env.client()
+      if not cl is None:
+        cl.inspect_type_at_point(self.view.file_name(), self.view.sel()[0].begin(), self.handle_reply)
+
 

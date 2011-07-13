@@ -306,4 +306,7 @@ class EnsimeClient(EnsimeMessageHandler):
   
   def perform_organize(self, previous_id, msg_id, on_complete):
     self.req("(swank:exec-refactor " + str(int(previous_id)) + " organizeImports)", on_complete, int(msg_id))
+
+  def inspect_type_at_point(self, file_path, position, on_complete):
+    self.req('(swank:type-at-point "' + file_path + '" ' + str(int(position)) + ")", on_complete)
       

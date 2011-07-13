@@ -88,7 +88,7 @@ class ScalaOnly:
 
 class EnsimeOnly:
   def ensime_project_file(self):
-    prj_files = [(f + "/core/.ensime") for f in self.window.folders() if os.path.exists(f + "/core/.ensime")]
+    prj_files = [(f + "/.ensime") for f in self.window.folders() if os.path.exists(f + "/.ensime")]
     if len(prj_files) > 0:
       return prj_files[0]
     else:
@@ -100,9 +100,9 @@ class EnsimeOnly:
 class EnsimeServerCommand(sublime_plugin.WindowCommand, ProcessListener, ScalaOnly, EnsimeOnly):
 
   def ensime_project_root(self):
-    prj_dirs = [f for f in self.window.folders() if os.path.exists(f + "/core/.ensime")]
+    prj_dirs = [f for f in self.window.folders() if os.path.exists(f + "/.ensime")]
     if len(prj_dirs) > 0:
-      return prj_dirs[0] + "/core"
+      return prj_dirs[0] 
     else:
       return None
 
@@ -239,7 +239,7 @@ class EnsimeUpdateMessagesView(sublime_plugin.WindowCommand, EnsimeOnly):
 class CreateEnsimeClientCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
   def run(self):
-    cl = EnsimeClient(self.window, u"/Users/ivan/projects/mojolly/backchat-library/core")
+    cl = EnsimeClient(self.window, u"/Users/ivan/projects/mojolly/logback-akka")
     cl.set_ready()
     self.window.run_command("ensime_handshake")
 

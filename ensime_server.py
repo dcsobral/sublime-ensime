@@ -92,6 +92,7 @@ class EnsimeOnly:
     if len(prj_files) > 0:
       return prj_files[0]
     else:
+      sublime.error_message("There are no open folders. Please open a folder containing a .ensime file.")
       return None
 
   def is_enabled(self, kill = False):
@@ -103,7 +104,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
   def ensime_project_root(self):
     prj_dirs = [f for f in self.window.folders() if os.path.exists(f + "/.ensime")]
     if len(prj_dirs) > 0:
-      return prj_dirs[0] 
+      return prj_dirs[0]
     else:
       return None
 
@@ -120,7 +121,6 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
   def show_output_window(self, show_output = False):
     if show_output:
       self.window.run_command("show_panel", {"panel": "output.ensime_server"})
-    
 
   def run(self, encoding = "utf-8", env = {}, 
           start = False, quiet = True, kill = False, 
@@ -157,7 +157,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
     self.proc = None
     if not self.quiet:
       print "Starting Ensime Server."
-    
+
     if show_output:
       self.show_output_window(show_output)
 
@@ -165,7 +165,6 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
     # so that emitted working dir relative path names make sense
     if self.ensime_project_root() and self.ensime_project_root() != "":
       os.chdir(self.ensime_project_root())
-
 
     err_type = OSError
     if os.name == "nt":
@@ -180,17 +179,16 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         sublime.set_timeout(
           functools.partial(ensime_environment.ensime_env.set_client, cl), 0)
         vw = self.window.active_view()
-        self.proc = AsyncProcess([
-            'bin/server', 
-            self.ensime_project_root() + "/.ensime_port"
-            ], self, server_dir)
+        self.proc = AsyncProcess(['bin/server',
+				  self.ensime_project_root() + "/.ensime_port"],
+				  self,
+				  os.path.join(sublime.packages_path(), server_dir))
     except err_type as e:
       print str(e)
       self.append_data(None, str(e) + '\n')
 
   def perform_handshake(self):
     self.window.run_command("ensime_handshake")
-    
 
   def append_data(self, proc, data):
     if proc != self.proc:
@@ -279,4 +277,4 @@ class EnsimeHandshakeCommand(sublime_plugin.WindowCommand, EnsimeOnly):
   def run(self):
     if (ensime_environment.ensime_env.client().ready()):
       ensime_environment.ensime_env.client().handshake(self.handle_reply)
-            
+

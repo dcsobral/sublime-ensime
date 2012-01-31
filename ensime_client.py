@@ -1,8 +1,9 @@
 import os, sys, stat, time, datetime, re
 import functools, socket, threading
 import sublime_plugin, sublime
+import sexp
 from string import strip
-
+from sexp import key,sym
 
 
 class EnsimeMessageHandler:
@@ -29,7 +30,6 @@ class EnsimeServerClient:
   def receive_loop(self):
     #TODO: possibly use a smaller buffer but allow for recomposing a message
     #      from multiple buffers in case they overflow.
-    from sexpr_parser import parse
     while self.connected:
       try:
         res = self.client.recv(4096)
@@ -39,7 +39,8 @@ class EnsimeServerClient:
           msg = res[6:msglen]
           nxt = strip(res[msglen:])
           while len(nxt) > 0 or len(msg) > 0:
-            sublime.set_timeout(functools.partial(self.handler.on_data, parse(msg)), 0)
+            form = sexp.read(msg)
+            sublime.set_timeout(functools.partial(self.handler.on_data, form), 0)
             if len(nxt) > 0:
               msglen = int(nxt[:6], 16) + 6
               msg = nxt[6:msglen]
@@ -109,11 +110,10 @@ class EnsimeClient(EnsimeMessageHandler):
     def ignore(d): 
       None      
 
-    def clear_notes(lang, data):
-      if data[-1] == "t":
-        self.window.active_view().run_command(
-          "ensime_notes", 
-          {"lang": lang, "action": "clear"})
+    def clear_notes(lang):
+      self.window.active_view().run_command(
+        "ensime_notes", 
+        {"lang": lang, "action": "clear"})
 
     def add_note(lang, data):
       self.window.active_view().run_command(
@@ -122,10 +122,9 @@ class EnsimeClient(EnsimeMessageHandler):
       )
     
     def render_notes(data):
-      if data[-1] == "t":
-        self.window.active_view().run_command(
-          "ensime_notes",
-          { "action": "render" }
+      self.window.active_view().run_command(
+        "ensime_notes",
+        { "action": "render" }
         )    
     
     self.settings = settings
@@ -146,14 +145,15 @@ class EnsimeClient(EnsimeMessageHandler):
       ":error": lambda d: sublime.error_message(d[-1])
     }
     self._server_message_handlers = {
-      "clear-all-scala-notes": lambda d: clear_notes("scala", d),
-      "clear-all-java-notes": lambda d: clear_notes("java", d),
-      "scala-notes": lambda d: add_note("scala", d),
-      "java-notes": lambda d: add_note("java", d),
-      "compiler-ready": lambda d: self.window.run_command("random_words_of_encouragement"),
-      "full-typecheck-finished": render_notes,
-      "indexer-ready": ignore,
-      "background-message": sublime.status_message
+      ":clear-all-scala-notes": lambda d: clear_notes("scala"),
+      ":clear-all-java-notes": lambda d: clear_notes("java"),
+      ":scala-notes": lambda d: add_note("scala", d),
+      ":java-notes": lambda d: add_note("java", d),
+      ":compiler-ready": 
+      lambda d: self.window.run_command("random_words_of_encouragement"),
+      ":full-typecheck-finished": render_notes,
+      ":indexer-ready": ignore,
+      ":background-message": sublime.status_message
     }
       
   def ready(self):
@@ -179,28 +179,33 @@ class EnsimeClient(EnsimeMessageHandler):
     del self.message_handlers[handler_id]
 
   def on_data(self, data):
+    print "on_data: " + str(data)
     self.feedback(str(data))
     # match a message with a registered response handler.
     # if the message has no registered handler check if it's a 
     # background message.
-    if data[0] == ":return":
+    if data[0] == key(":return"):
       th = self._reply_handlers
 
       # if data[0][0][0][1:] == "procedure-id" and self.procedure_handlers.has_key(data[0][0][1]):
       #   self.procedure_handlers[data[0][0][1]](data)
       #   del self.proceure_handlers[data[0][0][1]]
+
       if self.message_handlers.has_key(data[-1]):
-        th[data[1][0]](data)
+        reply_type = str(data[1][0])
+        th[reply_type](data)
       else:
         print "Unhandled message: " + str(data)
     else:
         self.handle_server_message(data)
 
   def handle_server_message(self, data):
+    print "handle_server_message: " + str(data)
     handled = self._server_message_handlers
     try:
-      if handled.has_key(data[0][1:]):
-        handled[data[0][1:]](data[-1])
+      key = str(data[0])
+      if handled.has_key(key):
+        handled[key](data[-1])
       else:
         print "Received a message from the server:"
         print str(data)
@@ -243,19 +248,28 @@ class EnsimeClient(EnsimeMessageHandler):
     if self.ready:
       return self.project_root + "/.ensime"
     else:
-      return ""
+      return None
 
   def project_config(self):
-    return open(self.project_file()).read()
+    try:
+      src = open(self.project_file()).read() if self.project_file() else "()"
+      conf = sexp.read(src)
+      conf = conf + [key(":root-dir"), self.project_root]
+      conf = conf + [key(":active-subproject"), "ensime"]
+      return conf
+    except StandardError:
+      return []
+    
   
   def prepend_length(self, data): 
     return "%06x" % len(data) + data
 
   def format(self, data, count = None):
-    if count == None:
-      return "(:swank-rpc " + str(data) + ")"
+    if count:
+      return [key(":swank-rpc"), data, count]
     else:
-      return str("(:swank-rpc " + str(data) + " " + str(count) + ")")
+      return [key(":swank-rpc"), data]
+
   
   def req(self, to_send, on_complete = None, msg_id = None): 
     msgcnt = msg_id
@@ -265,16 +279,21 @@ class EnsimeClient(EnsimeMessageHandler):
     if self.ready() and not self.client.connected:
       self.client.connect()
 
-    msg = ""
+    msg = None
     if on_complete != None:
       self.message_handlers[msgcnt] = on_complete
       msg = self.format(to_send, msgcnt)
     else:
       msg = self.format(to_send)
 
-    if msg != "":
-      self.feedback(msg)
-      self.client.send(self.prepend_length(msg))
+    msg_str = sexp.to_string(msg)
+
+    print "SEND: " + msg_str
+
+    self.feedback(msg_str)
+    self.client.send(self.prepend_length(msg_str))
+
+
 
   def disconnect(self):
     self._counterLock.acquire()
@@ -286,27 +305,36 @@ class EnsimeClient(EnsimeMessageHandler):
     self.client.close()
 
   def handshake(self, on_complete): 
-    self.req("(swank:connection-info)", on_complete)
+    self.req([sym("swank:connection-info")], on_complete)
 
   def initialize_project(self, on_complete):
-    self.req("(swank:init-project " + self.project_config() + " )", on_complete)
+    self.req([sym("swank:init-project"), self.project_config()], on_complete)
 
   def format_source(self, file_path, on_complete):
-    self.req('(swank:format-source ("'+file_path+'"))', on_complete)
+    self.req([sym("swank:format-source"),[file_path]], on_complete)
 
   def type_check_all(self, on_complete):
-    self.req('(swank:typecheck-all)', on_complete)
+    self.req([sym("swank:typecheck-all")], on_complete)
 
   def type_check_file(self, file_path, on_complete):
-    self.req('(swank:typecheck-file "' + file_path + '")', on_complete)
+    self.req([sym("swank:typecheck-file"), file_path], on_complete)
 
   def organize_imports(self, file_path, on_complete):
-    self.req('(swank:perform-refactor ' + str(self.next_procedure_id()) + ' organizeImports ' +
-                '(file "'+file_path+'") t)', on_complete)
+    self.req([sym("swank:perform-refactor"),
+              self.next_procedure_id(),
+              sym(organizeImports), 
+              [sym("file"),file_path], 
+              True], on_complete)
   
   def perform_organize(self, previous_id, msg_id, on_complete):
-    self.req("(swank:exec-refactor " + str(int(previous_id)) + " organizeImports)", on_complete, int(msg_id))
+    self.req([sym("swank:exec-refactor"),
+              int(previous_id), 
+              sym("organizeImports")], 
+             on_complete, int(msg_id))
 
   def inspect_type_at_point(self, file_path, position, on_complete):
-    self.req('(swank:type-at-point "' + file_path + '" ' + str(int(position)) + ")", on_complete)
+    self.req([sym("swank:type-at-point"),
+              file_path,
+              int(position)], 
+             on_complete)
       

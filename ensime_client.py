@@ -121,12 +121,6 @@ class EnsimeClient(EnsimeMessageHandler):
         { "lang": lang, "action": "add", "value": data }
       )
     
-    def render_notes(data):
-      self.window.active_view().run_command(
-        "ensime_notes",
-        { "action": "render" }
-        )    
-    
     self.settings = settings
     self.project_root = project_root
     self._ready = False
@@ -151,7 +145,7 @@ class EnsimeClient(EnsimeMessageHandler):
       ":java-notes": lambda d: add_note("java", d),
       ":compiler-ready": 
       lambda d: self.window.run_command("random_words_of_encouragement"),
-      ":full-typecheck-finished": render_notes,
+      ":full-typecheck-finished": ignore,
       ":indexer-ready": ignore,
       ":background-message": sublime.status_message
     }

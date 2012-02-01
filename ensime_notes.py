@@ -49,22 +49,24 @@ view_notes = {}
 
 class EnsimeNotes(sublime_plugin.TextCommand, EnsimeOnly):
 
-  def notes_for_view(self):
-    return [note for note in self.notes if note.file_name == self.view.file_name()]
-    
   def run(self, edit, action = "add", lang = "scala", value=None):
+
     if not hasattr(self, "notes"):
       self.notes = []
+
     if action == "add":
-      self.notes += [lang_note(lang, data) for data in value[3]]
+      new_notes = [lang_note(lang, data) for data in value[3]]
+      view_notes = [note for note in new_notes 
+                    if note.file_name == self.view.file_name()]
+      self.notes += view_notes
+      highlight_errors(self.view, self.notes)
+
     elif action == "clear":
       self.notes = []
       erase_error_highlights(self.view)
-    elif action == "render":
-      erase_error_highlights(self.view)
-      highlight_errors(self.view, self.notes_for_view())
+
     elif action == "display":
-      nn = self.notes_for_view()
+      nn = self.notes
       vw = self.view
       vpos = vw.line(vw.sel()[0].begin()).begin()
       if len(nn) > 0 and len([a for a in nn if self.view.line(int(a.start)).begin() == vpos]) > 0:

@@ -2,6 +2,7 @@ import os, sys, stat, functools
 import sublime, sublime_plugin
 from ensime_server import EnsimeOnly
 import ensime_environment
+import sexp
 
 ensime_env = ensime_environment.ensime_env
 
@@ -17,8 +18,16 @@ class LangNote:
     self.line = line
     self.col = col
 
-def lang_note(lang, data):
-  return LangNote(lang, data[3], data[-1], data[1], data[5], data[7], data[9], data[11])
+def lang_note(lang, m):
+  return LangNote(
+    lang, 
+    m[":msg"],
+    m[":file"],
+    m[":severity"],
+    m[":beg"],
+    m[":end"],
+    m[":line"],
+    m[":col"])
 
 def erase_error_highlights(view):
   view.erase_regions("ensime-error")
@@ -29,10 +38,10 @@ def highlight_errors(view, notes):
     print "There were no notes?"
     return
   print "higlighting errors"
-  errors = [view.full_line(int(note.start)) for note in notes]
+  errors = [view.full_line(note.start) for note in notes]
   underlines = []
   for note in notes:
-    underlines += [sublime.Region(int(pos)) for pos in range(int(note.start), int(note.end))]
+    underlines += [sublime.Region(int(pos)) for pos in range(note.start, note.end)]
   view.add_regions(
     "ensime-error-underline",
     underlines,
@@ -55,10 +64,8 @@ class EnsimeNotes(sublime_plugin.TextCommand, EnsimeOnly):
       self.notes = []
 
     if action == "add":
-      new_notes = [lang_note(lang, data) for data in value[3]]
-      view_notes = [note for note in new_notes 
-                    if note.file_name == self.view.file_name()]
-      self.notes += view_notes
+      new_notes = [lang_note(lang, m) for m in value]
+      self.notes.extend(new_notes)
       highlight_errors(self.view, self.notes)
 
     elif action == "clear":
@@ -70,7 +77,7 @@ class EnsimeNotes(sublime_plugin.TextCommand, EnsimeOnly):
       vw = self.view
       vpos = vw.line(vw.sel()[0].begin()).begin()
       if len(nn) > 0 and len([a for a in nn if self.view.line(int(a.start)).begin() == vpos]) > 0:
-        msgs = [note.message for note in self.notes_for_view()]
+        msgs = [note.message for note in self.notes]
         self.view.set_status("ensime-typer", "; ".join(set(msgs)))
       else:
         self.view.erase_status("ensime-typer")

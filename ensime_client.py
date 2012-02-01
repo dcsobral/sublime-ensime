@@ -4,7 +4,8 @@ import sublime_plugin, sublime
 import sexp
 from string import strip
 from sexp import key,sym
-
+import ensime_notes
+import traceback
 
 class EnsimeMessageHandler:
 
@@ -111,16 +112,33 @@ class EnsimeClient(EnsimeMessageHandler):
       None      
 
     def clear_notes(lang):
-      self.window.active_view().run_command(
-        "ensime_notes", 
-        {"lang": lang, "action": "clear"})
+      self.note_map = {}
+      for v in self.window.views():
+        v.run_command("ensime_notes", 
+                      {"lang": lang, 
+                       "action": "clear"})
 
-    def add_note(lang, data):
-      self.window.active_view().run_command(
-        "ensime_notes",
-        { "lang": lang, "action": "add", "value": data }
-      )
-    
+    def add_notes(lang, data):
+      m = sexp.sexp_to_key_map(data)
+      new_notes = [sexp.sexp_to_key_map(form) for form in m[":notes"]]
+
+      for note in new_notes:
+        key = os.path.realpath(str(note[":file"]))
+        view_notes = self.note_map.get(key) or []
+        view_notes.append(note)
+        self.note_map[key] = view_notes
+
+      for v in self.window.views():
+        key = os.path.realpath(str(v.file_name()))
+        notes = self.note_map.get(key) or []
+        v.run_command(
+          "ensime_notes",
+          { "lang": lang, "action": 
+            "add", "value": notes })
+
+    # maps filenames to lists of notes
+    self.note_map = {}
+
     self.settings = settings
     self.project_root = project_root
     self._ready = False
@@ -141,8 +159,8 @@ class EnsimeClient(EnsimeMessageHandler):
     self._server_message_handlers = {
       ":clear-all-scala-notes": lambda d: clear_notes("scala"),
       ":clear-all-java-notes": lambda d: clear_notes("java"),
-      ":scala-notes": lambda d: add_note("scala", d),
-      ":java-notes": lambda d: add_note("java", d),
+      ":scala-notes": lambda d: add_notes("scala", d),
+      ":java-notes": lambda d: add_notes("java", d),
       ":compiler-ready": 
       lambda d: self.window.run_command("random_words_of_encouragement"),
       ":full-typecheck-finished": ignore,
@@ -205,8 +223,7 @@ class EnsimeClient(EnsimeMessageHandler):
         print str(data)
     except Exception as e:
       print "Error when handling server message: " + str(data)
-      print e.args
-    
+      traceback.print_exc(file=sys.stdout)
 
   def next_message_id(self):
     self._counterLock.acquire()

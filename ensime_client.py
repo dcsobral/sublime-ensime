@@ -254,8 +254,6 @@ class EnsimeClient(EnsimeMessageHandler):
     try:
       src = open(self.project_file()).read() if self.project_file() else "()"
       conf = sexp.read(src)
-      conf = conf + [key(":root-dir"), self.project_root]
-      conf = conf + [key(":active-subproject"), "ensime"]
       return conf
     except StandardError:
       return []
@@ -293,8 +291,6 @@ class EnsimeClient(EnsimeMessageHandler):
     self.feedback(msg_str)
     self.client.send(self.prepend_length(msg_str))
 
-
-
   def disconnect(self):
     self._counterLock.acquire()
     try:
@@ -307,8 +303,23 @@ class EnsimeClient(EnsimeMessageHandler):
   def handshake(self, on_complete): 
     self.req([sym("swank:connection-info")], on_complete)
 
+  def __initialize_project(self, conf, subproj_name, on_complete):
+    conf = conf + [key(":root-dir"), self.project_root]
+    conf = conf + [key(":active-subproject"), subproj_name]
+    self.req([sym("swank:init-project"), conf], on_complete)
+
   def initialize_project(self, on_complete):
-    self.req([sym("swank:init-project"), self.project_config()], on_complete)
+    conf = self.project_config()
+    m = sexp.sexp_to_key_map(conf)
+    subprojects = [sexp.sexp_to_key_map(p) for p in m[":subprojects"]]
+    names = [p[":name"] for p in subprojects]
+    if len(names) > 1:
+      self.window.show_quick_panel(
+        names, lambda i: self.__initialize_project(conf,names[i],on_complete))
+    elif len(names) == 1:
+      self.__initialize_project(conf,names[0],on_complete)
+    else:
+      self.__initialize_project(conf,"NA",on_complete)
 
   def format_source(self, file_path, on_complete):
     self.req([sym("swank:format-source"),[file_path]], on_complete)

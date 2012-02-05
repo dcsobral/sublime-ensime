@@ -84,20 +84,21 @@ class EnsimeNotes(sublime_plugin.TextCommand, EnsimeOnly):
         #sublime.set_timeout(functools.partial(self.view.run_command, "ensime_inspect_type_at_point", self.view.id()), 200)
 
 def run_check(view):
-#  if view.settings().get("syntax") == "Packages/scala.tmbundle/Syntaxes/Scala.tmLanguage":
     view.checked = True
     view.run_command("ensime_type_check_file")
 
 class BackgroundTypeChecker(sublime_plugin.EventListener):
 
   def on_load(self, view):
-    run_check(view)
+    if view.file_name().endswith(("scala","java")):
+      run_check(view)
 
   def on_post_save(self, view):
-    run_check(view)
+    if view.file_name().endswith(("scala","java")):
+      run_check(view)
 
   def on_selection_modified(self, view):
-    if view.settings().get("syntax") == u'Packages/scala.tmbundle/Syntaxes/Scala.tmLanguage':
+    if view.file_name().endswith(("scala","java")):
       view.run_command("ensime_notes", { "action": "display" })
 
 class EnsimeInspectTypeAtPoint(sublime_plugin.TextCommand, EnsimeOnly):

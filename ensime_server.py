@@ -127,9 +127,13 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
           show_output = True):
     print "Running: " + self.__class__.__name__
     self.show_output = show_output
-    if not hasattr(self, 'settings'):
-      self.settings = sublime.load_settings("Ensime.sublime-settings")
-    server_dir = self.settings.get("ensime_server_path")
+    #if not hasattr(self, 'settings'):
+    self.settings = sublime.load_settings("Ensime.sublime-settings")
+    #print self.settings.has("ensime_server_path")
+    print "packages path: " + sublime.packages_path()
+    print "user packages path: " + sublime.installed_packages_path()
+    server_dir = self.settings.get("ensime_server_path", sublime.packages_path() + "/Ensime/server")
+    print "Starting Ensime Server at " + server_dir
 
     if kill:
       # ensime_environment.ensime_env.client().disconnect()
@@ -250,7 +254,7 @@ class EnsimeUpdateMessagesView(sublime_plugin.WindowCommand, EnsimeOnly):
 class CreateEnsimeClientCommand(sublime_plugin.WindowCommand, EnsimeOnly):
 
   def run(self):
-    cl = EnsimeClient(self.window, u"/Users/ivan/projects/mojolly/logback-akka")
+    cl = EnsimeClient(self.window, u"/Users/ivan/projects/scapulet")
     cl.set_ready()
     self.window.run_command("ensime_handshake")
 

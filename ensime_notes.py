@@ -98,7 +98,7 @@ class BackgroundTypeChecker(sublime_plugin.EventListener):
       run_check(view)
 
   def on_selection_modified(self, view):
-    if view.file_name().endswith(("scala","java")):
+    if not view.file_name() is None and view.file_name().endswith(("scala","java")):
       view.run_command("ensime_notes", { "action": "display" })
 
 class EnsimeInspectTypeAtPoint(sublime_plugin.TextCommand, EnsimeOnly):

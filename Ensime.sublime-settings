@@ -1,4 +1,4 @@
 {
-  "ensime_server_path": "/Users/aemon/projects/ensime/dist",
+  "ensime_server_path": "$HOME/Library/Application Support/Sublime Text 2/Packages/Ensime/server",
   "ensime_work_dir": "Packages/Ensime/work"
 }

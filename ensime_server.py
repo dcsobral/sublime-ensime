@@ -127,13 +127,11 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
           show_output = True):
     print "Running: " + self.__class__.__name__
     self.show_output = show_output
-    #if not hasattr(self, 'settings'):
-    self.settings = sublime.load_settings("Ensime.sublime-settings")
-    #print self.settings.has("ensime_server_path")
-    print "packages path: " + sublime.packages_path()
-    print "user packages path: " + sublime.installed_packages_path()
+    if not hasattr(self, 'settings'):
+      self.settings = sublime.load_settings("Ensime.sublime-settings")
+
     server_dir = self.settings.get("ensime_server_path", sublime.packages_path() + "/Ensime/server")
-    print "Starting Ensime Server at " + server_dir
+    server_path = server_dir if server_dir.startswith("/") else os.path.join(sublime.packages_path(), server_dir)
 
     if kill:
       # ensime_environment.ensime_env.client().disconnect()
@@ -182,7 +180,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         self.proc = AsyncProcess(['bin/server',
 				  self.ensime_project_root() + "/.ensime_port"],
 				  self,
-				  os.path.join(sublime.packages_path(), server_dir))
+				  server_path)
     except err_type as e:
       print str(e)
       self.append_data(None, str(e) + '\n')

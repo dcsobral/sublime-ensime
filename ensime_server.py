@@ -207,7 +207,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         == sublime.Region(self.output_view.size()))
     self.output_view.set_read_only(False)
     edit = self.output_view.begin_edit()
-    self.output_view.insert(edit, self.output_view.size(), str)
+    self.output_view.insert(edit, self.output_view.size(), unicode(str, "utf-8"))
     if selection_was_at_end:
       self.output_view.show(self.output_view.size())
     self.output_view.end_edit(edit)

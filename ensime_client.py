@@ -34,7 +34,7 @@ class EnsimeServerClient:
     while self.connected:
       try:
         res = self.client.recv(4096)
-        print "RECV: " + res
+        print "RECV: " + unicode(res, "utf-8")
         if res:
           msglen = int(res[:6], 16) + 6
           msg = res[6:msglen]

@@ -106,7 +106,7 @@ class EnsimeInspectTypeAtPoint(sublime_plugin.TextCommand, EnsimeOnly):
   def handle_reply(self, data):
     d = data[1][1]
     if d[1] != "<notype>":
-      self.view.set_status("ensime-typer", "(" + d[7].capitalize() + ") " + d[5])
+      self.view.set_status("ensime-typer", "(" + str(d[7]) + ") " + d[5])
     else:
       self.view.erase_status("ensime-typer")
 

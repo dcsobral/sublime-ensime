@@ -201,7 +201,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         sublime.set_timeout(
           functools.partial(ensime_environment.ensime_env.set_client, cl), 0)
         vw = self.window.active_view()
-        self.proc = AsyncProcess([self.ensime_command(),
+        self.proc = AsyncProcess([server_path + '/' + self.ensime_command(),
 				  self.ensime_project_root() + "/.ensime_port"],
 				  self,
 				  server_path)

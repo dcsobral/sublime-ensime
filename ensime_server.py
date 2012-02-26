@@ -221,9 +221,9 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         proc.kill()
       return
 
-    str = decode_string(data.replace("\r\n", "\n").replace("\r", "\n"))
+    str_data = str(data).replace("\r\n", "\n").replace("\r", "\n")
 
-    if not ensime_environment.ensime_env.client().ready() and re.search("Wrote port", str):
+    if not ensime_environment.ensime_env.client().ready() and re.search("Wrote port", str_data):
       ensime_environment.ensime_env.client().set_ready()
       self.perform_handshake()
 
@@ -232,7 +232,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         == sublime.Region(self.output_view.size()))
     self.output_view.set_read_only(False)
     edit = self.output_view.begin_edit()
-    self.output_view.insert(edit, self.output_view.size(), str)
+    self.output_view.insert(edit, self.output_view.size(), str_data)
     if selection_was_at_end:
       self.output_view.show(self.output_view.size())
     self.output_view.end_edit(edit)

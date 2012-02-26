@@ -1,3 +1,4 @@
+from __future__ import with_statement
 import os, sys, stat, time, datetime, re
 import functools, socket, threading
 import sublime_plugin, sublime
@@ -6,6 +7,11 @@ from string import strip
 from sexp import key,sym
 import ensime_notes
 import traceback
+import Queue
+
+
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
 
 class EnsimeMessageHandler:
 
@@ -33,7 +39,7 @@ class EnsimeServerClient:
     #      from multiple buffers in case they overflow.
     while self.connected:
       try:
-        res = self.client.recv(4096)
+        res = self.client.recv(2048 * 1024)
         print "RECV: " + unicode(res, "utf-8")
         if res:
           msglen = int(res[:6], 16) + 6
@@ -95,6 +101,45 @@ class EnsimeServerClient:
       self.handler.disconnect("server")
       self.set_connected(False)
 
+  def sync_send(self, request, msg_id): 
+    self._connect_lock.acquire()
+    try:
+      s = socket.socket()
+      s.connect(("127.0.0.1", self.port()))
+      try:
+        s.send(request)
+        result = ""
+        keep_going = True
+        while keep_going: 
+          res = s.recv(2048 * 1024)
+          msglen = int(res[:6], 16) + 6
+          msg = res[6:msglen]
+          nxt = strip(res[msglen:])
+          while len(nxt) > 0 or len(msg) > 0:
+            if len(nxt) > 0:
+              sublime.set_timeout(functools.partial(self.handler.on_data, sexp.read(msg)), 0)
+              msglen = int(nxt[:6], 16) + 6
+              msg = nxt[6:msglen]
+              nxt = strip(nxt[msglen:])
+            else: 
+              nxt = ""
+              break
+          result = sexp.read(msg)
+          keep_going = msg_id != result[-1]
+          if keep_going:
+            sublime.set_timeout(functools.partial(self.handler.on_data, result), 0)
+        print "the final result: " + repr(result)
+        return result
+      except Exception as error:
+        print error
+      finally:
+        if s: 
+          s.close() 
+    except Exception as error:
+      print error
+    finally:
+      self._connect_lock.release()
+
   def close(self):
     self._connect_lock.acquire()
     try:
@@ -103,7 +148,6 @@ class EnsimeServerClient:
       self.connect = False
     finally:
       self._connect_lock.release()    
-
 
 class EnsimeClient(EnsimeMessageHandler):
 
@@ -257,7 +301,7 @@ class EnsimeClient(EnsimeMessageHandler):
 
   def project_file(self): 
     if self.ready:
-      return self.project_root + "/.ensime"
+      return os.path.join(self.project_root, ".ensime")
     else:
       return None
 
@@ -299,8 +343,15 @@ class EnsimeClient(EnsimeMessageHandler):
 
     print "SEND: " + msg_str
 
-    self.feedback(msg_str)
+    sublime.set_timeout(functools.partial(self.feedback, msg_str), 0)
     self.client.send(self.prepend_length(msg_str))
+
+  def sync_req(self, to_send):
+    msgcnt = self.next_message_id()
+    msg_str = sexp.to_string(self.format(to_send, msgcnt))
+    print "SEND: " + msg_str
+    return self.client.sync_send(self.prepend_length(msg_str), msgcnt)
+    
 
   def disconnect(self):
     self._counterLock.acquire()
@@ -344,7 +395,7 @@ class EnsimeClient(EnsimeMessageHandler):
   def organize_imports(self, file_path, on_complete):
     self.req([sym("swank:perform-refactor"),
               self.next_procedure_id(),
-              sym(organizeImports), 
+              sym("organizeImports"), 
               [sym("file"),file_path], 
               True], on_complete)
   
@@ -359,4 +410,6 @@ class EnsimeClient(EnsimeMessageHandler):
               file_path,
               int(position)], 
              on_complete)
-      
+  
+  def complete_member(self, file_path, position):
+    return self.sync_req([sym("swank:completions"), file_path, position, 0])

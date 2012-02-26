@@ -76,6 +76,17 @@ class AsyncProcess(object):
         self.proc.stderr.close()
         break
 
+# if this doesn't work well enough as it's a bit hacky use the chardet egg to drive this home.
+guess_list = ["us-ascii", "utf-8", "utf-16", "utf-7", "iso-8859-1", "iso-8859-2", "windows-1250", "windows-1252"]
+def decode_string(data):
+  for best_enc in guess_list:
+    try:
+      unicode(data, best_enc, "strict")
+    except:
+      pass
+    else:
+      break
+  return unicode(data, best_enc)
 
 class ScalaOnly:
   def is_enabled(self):
@@ -201,6 +212,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
   def perform_handshake(self):
     self.window.run_command("ensime_handshake")
 
+
   def append_data(self, proc, data):
     if proc != self.proc:
       # a second call to exec has been made before the first one
@@ -209,7 +221,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         proc.kill()
       return
 
-    str = data.replace("\r\n", "\n").replace("\r", "\n")
+    str = decode_string(data.replace("\r\n", "\n").replace("\r", "\n"))
 
     if not ensime_environment.ensime_env.client().ready() and re.search("Wrote port", str):
       ensime_environment.ensime_env.client().set_ready()
@@ -220,7 +232,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         == sublime.Region(self.output_view.size()))
     self.output_view.set_read_only(False)
     edit = self.output_view.begin_edit()
-    self.output_view.insert(edit, self.output_view.size(), unicode(str, "utf-8"))
+    self.output_view.insert(edit, self.output_view.size(), str)
     if selection_was_at_end:
       self.output_view.show(self.output_view.size())
     self.output_view.end_edit(edit)

@@ -117,3 +117,4 @@ class EnsimeInspectTypeAtPoint(sublime_plugin.TextCommand, EnsimeOnly):
         cl.inspect_type_at_point(self.view.file_name(), self.view.sel()[0].begin(), self.handle_reply)
 
 
+

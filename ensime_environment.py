@@ -21,3 +21,4 @@ class EnsimeEnvironment:
 
 
 ensime_env = EnsimeEnvironment()
+

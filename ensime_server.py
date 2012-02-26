@@ -92,7 +92,7 @@ class EnsimeOnly:
     if len(prj_files) > 0:
       return prj_files[0]
     else:
-      sublime.error_message("There are no open folders. Please open a folder containing a .ensime file.")
+      #sublime.error_message("There are no open folders. Please open a folder containing a .ensime file.")
       return None
 
   def is_enabled(self, kill = False):
@@ -122,6 +122,19 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
     if show_output:
       self.window.run_command("show_panel", {"panel": "output.ensime_server"})
 
+  def ensime_command(self): 
+    if os.name == 'nt':
+      return "bin\\server.bat"
+    else: 
+      return "bin/server"
+
+  def default_ensime_install_path(self):
+    if os.name == 'nt':
+      return "Ensime\\server"
+    else: 
+      return "Ensime/server"    
+
+
   def run(self, encoding = "utf-8", env = {}, 
           start = False, quiet = True, kill = False, 
           show_output = True):
@@ -130,7 +143,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
     if not hasattr(self, 'settings'):
       self.settings = sublime.load_settings("Ensime.sublime-settings")
 
-    server_dir = self.settings.get("ensime_server_path", sublime.packages_path() + "/Ensime/server")
+    server_dir = self.settings.get("ensime_server_path", self.default_ensime_install_path())
     server_path = server_dir if server_dir.startswith("/") else os.path.join(sublime.packages_path(), server_dir)
 
     if kill:
@@ -177,7 +190,7 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
         sublime.set_timeout(
           functools.partial(ensime_environment.ensime_env.set_client, cl), 0)
         vw = self.window.active_view()
-        self.proc = AsyncProcess(['bin/server',
+        self.proc = AsyncProcess([self.ensime_command(),
 				  self.ensime_project_root() + "/.ensime_port"],
 				  self,
 				  server_path)

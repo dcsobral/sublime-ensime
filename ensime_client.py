@@ -1,4 +1,3 @@
-from __future__ import with_statement
 import os, sys, stat, time, datetime, re
 import functools, socket, threading
 import sublime_plugin, sublime
@@ -31,14 +30,13 @@ class EnsimeServerClient:
     return int(open(self.project_root + "/.ensime_port").read()) 
 
   def receive_loop(self):
-    #TODO: possibly use a smaller buffer but allow for recomposing a message
-    #      from multiple buffers in case they overflow.
     while self.connected:
       try:
-        res = self.client.recv(2048 * 1024)
+        res = self.client.recv(4096)
         print "RECV: " + unicode(res, "utf-8")
         if res:
-          msglen = int(res[:6], 16) + 6
+          len_str = res[:6]
+          msglen = int(len_str, 16) + 6
           msg = res[6:msglen]
           nxt = strip(res[msglen:])
           while len(nxt) > 0 or len(msg) > 0:
@@ -106,25 +104,29 @@ class EnsimeServerClient:
         s.send(request)
         result = ""
         keep_going = True
+        nxt = ""
         while keep_going: 
-          res = s.recv(2048 * 1024)
+          res = nxt + s.recv(4096)
           msglen = int(res[:6], 16) + 6
           msg = res[6:msglen]
-          nxt = strip(res[msglen:])
-          while len(nxt) > 0 or len(msg) > 0:
-            if len(nxt) > 0:
-              sublime.set_timeout(functools.partial(self.handler.on_data, sexp.read(msg)), 0)
-              msglen = int(nxt[:6], 16) + 6
-              msg = nxt[6:msglen]
-              nxt = strip(nxt[msglen:])
-            else: 
-              nxt = ""
-              break
-          result = sexp.read(msg)
-          keep_going = result == None or msg_id != result[-1]
-          if keep_going:
-            sublime.set_timeout(functools.partial(self.handler.on_data, result), 0)
-        print "the final result: " + repr(result)
+          if (len(msg) + 6) == msglen:
+            nxt = strip(res[msglen:])
+            while len(nxt) > 0 or len(msg) > 0:
+              if len(nxt) > 0:
+                sublime.set_timeout(functools.partial(self.handler.on_data, sexp.read(msg)), 0)
+                msglen = int(nxt[:6], 16) + 6
+                msg = nxt[6:msglen]
+                nxt = strip(nxt[msglen:])
+              else: 
+                nxt = ""
+                break
+            result = sexp.read(msg)
+            keep_going = result == None or msg_id != result[-1]
+            if keep_going:
+              sublime.set_timeout(functools.partial(self.handler.on_data, result), 0)
+          else:
+            nxt = res 
+            
         return result
       except Exception as error:
         print error

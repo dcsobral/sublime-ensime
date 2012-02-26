@@ -158,7 +158,8 @@ class EnsimeServerCommand(sublime_plugin.WindowCommand,
     server_path = server_dir if server_dir.startswith("/") else os.path.join(sublime.packages_path(), server_dir)
 
     if kill:
-      # ensime_environment.ensime_env.client().disconnect()
+      ensime_environment.ensime_env.client().sync_req([sym("swank:shutdown-server")])
+      ensime_environment.ensime_env.client().disconnect()
       if self.proc:
         self.proc.kill()
         self.proc = None

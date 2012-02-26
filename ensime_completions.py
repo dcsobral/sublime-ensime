@@ -31,9 +31,11 @@ class EnsimeCompletionsListener(sublime_plugin.EventListener):
       return []
  
     data = ensime_environment.ensime_env.client().complete_member(view.file_name(), locations[0])
+    if data is None: 
+      return [] 
     friend = sexp.sexp_to_key_map(data[1][1])
     comps = friend[":completions"] if ":completions" in friend else []
     comp_list = [ensime_completion(sexp.sexp_to_key_map(p)) for p in friend[":completions"]]
     
     return ([(p.name + "\t" + p.signature, p.name) for p in comp_list], sublime.INHIBIT_EXPLICIT_COMPLETIONS | sublime.INHIBIT_WORD_COMPLETIONS)
-
+  

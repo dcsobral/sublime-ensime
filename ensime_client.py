@@ -9,10 +9,6 @@ import ensime_notes
 import traceback
 import Queue
 
-
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-
-
 class EnsimeMessageHandler:
 
   def on_data(self, data):
@@ -125,7 +121,7 @@ class EnsimeServerClient:
               nxt = ""
               break
           result = sexp.read(msg)
-          keep_going = msg_id != result[-1]
+          keep_going = result == None or msg_id != result[-1]
           if keep_going:
             sublime.set_timeout(functools.partial(self.handler.on_data, result), 0)
         print "the final result: " + repr(result)

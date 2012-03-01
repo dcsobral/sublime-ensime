@@ -29,8 +29,10 @@ class EnsimeCompletionsListener(sublime_plugin.EventListener):
   def on_query_completions(self, view, prefix, locations):
     if not view.match_selector(locations[0], "source.scala") and not view.match_selector(locations[0], "source.java"):
       return []
- 
-    data = ensime_environment.ensime_env.client().complete_member(view.file_name(), locations[0])
+    env = ensime_environment.ensime_env
+    if not env.use_auto_complete:
+      return []
+    data = env.client().complete_member(view.file_name(), locations[0])
     if data is None: 
       return [] 
     friend = sexp.sexp_to_key_map(data[1][1])

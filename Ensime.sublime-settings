@@ -1,4 +1,5 @@
 {
   "ensime_server_path": "Ensime/server",
-  "ensime_work_dir": "Ensime/work"
+  "ensime_work_dir": "Ensime/work",
+  "use_auto_complete": false
 }

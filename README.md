@@ -19,7 +19,7 @@ There is NO support yet for the subprojects in an .ensime file.
 In your sublime text Packages dir.  
 
 ```
-git clone git://github.com/casualjim/sublime-ensime.git Ensime
+git clone git://github.com/michaelpnash/sublime-ensime.git Ensime
 cd Ensime
 ./install-ensime-server
 ```
